@@ -76,6 +76,24 @@
 
 static NSTimer *exportProgressTimer;
 
+- (NSArray<NSString *> *)supportedEvents
+{
+  return @[@"VideoProcessingProgress", @"DownloadAssetProgress"];
+}
+
+- (void)sendProgressNotification:(NSString *)assetId andProgress:(double)progress{
+  [self sendEventWithName:@"VideoProcessingProgress" body:@{
+    @"progress": @(progress),
+    @"assetId": assetId
+  }];
+}
+
+- (void)sendDownloadProgressNotification:(NSString *)assetId andProgress:(double)progress{
+  [self sendEventWithName:@"DownloadAssetProgress" body:@{
+    @"progress": @(progress),
+    @"assetId": assetId
+  }];
+}
 
 
 RCT_EXPORT_METHOD(convertVideoFromId:(NSDictionary *)params
