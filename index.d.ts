@@ -20,7 +20,7 @@ declare module "react-native-convert-ph-asset" {
     quality: ConvertAssetExportQuality
   }
 
-  export default interface ConvertPHAsset {
+  export default class ConvertPHAsset {
     convertVideoFromUrl: (params: ConvertPHAssetParams) => Promise<string>
     registerToEvent: (eventName: ConvertPHAssetEvent, handler: ConvertAssetPHEventResponse) => EmitterSubscription
   }
