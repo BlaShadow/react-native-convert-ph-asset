@@ -74,7 +74,7 @@
 @implementation RNConvertPhAsset
 @synthesize bridge = _bridge;
 
-RCT_EXPORT_MODULE()
+static NSTimer *exportProgressTimer;
 
 
 
