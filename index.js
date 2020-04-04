@@ -13,7 +13,7 @@ if (Platform.OS === 'ios') {
   const assetMediaManagerEmitter = new NativeEventEmitter(RNConvertPhAsset);
 
   RNConvertPhAsset.registerToEvent = (eventName, handler) => {
-    return assetMediaManagerEmitter(eventName, handler);
+    return assetMediaManagerEmitter.addListener(eventName, handler);
   }
 }
 
