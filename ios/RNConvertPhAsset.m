@@ -3,6 +3,7 @@
 #import <React/RCTConvert.h>
 #import <Photos/Photos.h>
 #import <MobileCoreServices/MobileCoreServices.h>
+
 @implementation RCTConvert (PHAssetGroup)
 
 +(NSPredicate *) PHAssetType:(id)json
@@ -72,6 +73,7 @@
 @end
 
 @implementation RNConvertPhAsset
+
 @synthesize bridge = _bridge;
 
 static NSTimer *exportProgressTimer;
@@ -95,6 +97,7 @@ static NSTimer *exportProgressTimer;
   }];
 }
 
+RCT_EXPORT_MODULE()
 
 RCT_EXPORT_METHOD(convertVideoFromId:(NSDictionary *)params
                   resolver:(RCTPromiseResolveBlock)resolve
@@ -113,68 +116,136 @@ RCT_EXPORT_METHOD(convertVideoFromId:(NSDictionary *)params
     }
     
     // Getting Video Asset
-    NSArray* localIds = [NSArray arrayWithObjects: assetId, nil];
+    NSArray* localIds = [NSArray arrayWithObjects:assetId, nil];
     PHAsset * _Nullable videoAsset = [PHAsset fetchAssetsWithLocalIdentifiers:localIds options:nil].firstObject;
     
     // Getting information from the asset
     NSString *mimeType = (NSString *)CFBridgingRelease(UTTypeCopyPreferredTagWithClass((__bridge CFStringRef _Nonnull)(outputFileType), kUTTagClassMIMEType));
     CFStringRef uti = UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, (__bridge CFStringRef _Nonnull)(mimeType), NULL);
     NSString *extension = (NSString *)CFBridgingRelease(UTTypeCopyPreferredTagWithClass(uti, kUTTagClassFilenameExtension));
-    
+
     // Creating output url and temp file name
     NSURL * _Nullable temDir = [[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
-    NSString *newFileName = [[NSUUID UUID] UUIDString];
-    NSString *tempName = [NSString stringWithFormat: @"%@.%@", newFileName, extension];
+    NSString *tempName = [NSString stringWithFormat: @"%@.%@", assetId, extension];
     NSURL *outputUrl = [NSURL fileURLWithPath:[temDir.path stringByAppendingPathComponent:tempName]];
     
+    if ([[NSFileManager defaultManager] fileExistsAtPath:[outputUrl absoluteString]]) {
+      if (exportProgressTimer != nil) {
+        [exportProgressTimer invalidate];
+        exportProgressTimer = nil;
+      }
+      
+      resolve(@{
+        @"type": @"video",
+        @"filename": tempName ?: @"",
+        @"mimeType": mimeType ?: @"",
+        @"path": outputUrl.absoluteString,
+        @"duration": @(0)
+      });
+
+      return;
+    }
+  
     // Setting video export session options
     PHVideoRequestOptions *videoRequestOptions = [[PHVideoRequestOptions alloc] init];
     videoRequestOptions.networkAccessAllowed = YES;
-    videoRequestOptions.deliveryMode = PHVideoRequestOptionsDeliveryModeHighQualityFormat;
-    
+    videoRequestOptions.deliveryMode = PHVideoRequestOptionsDeliveryModeMediumQualityFormat;
+    videoRequestOptions.progressHandler = ^(double progress, NSError * _Nullable error, BOOL * _Nonnull stop, NSDictionary * _Nullable info) {
+      if (self != nil) {
+        [self sendDownloadProgressNotification:assetId andProgress:progress];
+        
+        if (error != nil) {
+          reject(@"Download failed", error.localizedDescription, error);
+          return;
+        }
+      }
+    };
+
     // Creating new export session
     [[PHImageManager defaultManager] requestExportSessionForVideo:videoAsset options:videoRequestOptions exportPreset:pressetType resultHandler:^(AVAssetExportSession * _Nullable exportSession, NSDictionary * _Nullable info) {
-        
+        // Send complete download progress
+        [self sendDownloadProgressNotification:assetId andProgress:1];
+
+        if ([info objectForKey:@"PHImageErrorKey"] != nil) {
+          NSError *error = [info objectForKey:@"PHImageErrorKey"];
+
+          reject(@"Download failed", error.localizedDescription, error);
+          return;
+        }
+
         exportSession.shouldOptimizeForNetworkUse = YES;
         exportSession.outputFileType = outputFileType;
         exportSession.outputURL = outputUrl;
+
+        if (@available(iOS 10.0, *)) {
+          if (exportProgressTimer == nil) {
+            exportProgressTimer = [NSTimer scheduledTimerWithTimeInterval:0.1 repeats:YES block:^(NSTimer * _Nonnull timer) {
+              if (exportSession.progress > 0.99) {
+                [exportProgressTimer invalidate];
+                exportProgressTimer = nil;
+
+                return;
+              }
+
+              [self sendProgressNotification:assetId andProgress:exportSession.progress];
+            }];
+          }
+        }
+      
         // Converting the video and waiting to see whats going to happen
         [exportSession exportAsynchronouslyWithCompletionHandler:^{
-            switch ([exportSession status])
-            {
-                case AVAssetExportSessionStatusFailed:
-                {
-                    NSError* error = exportSession.error;
-                    NSString *codeWithDomain = [NSString stringWithFormat:@"E%@%zd", error.domain.uppercaseString, error.code];
-                    reject(codeWithDomain, error.localizedDescription, error);
-                    break;
-                }
-                case AVAssetExportSessionStatusCancelled:
-                {
-                    NSError *error = [NSError errorWithDomain:@"RNGalleryManager" code: -91 userInfo:nil];
-                    reject(@"Cancelled", @"Export canceled", error);
-                    break;
-                }
-                case AVAssetExportSessionStatusCompleted:
-                {
-                    resolve(
-                            @{
-                              @"type": @"video",
-                              @"filename": tempName ?: @"",
-                              @"mimeType": mimeType ?: @"",
-                              @"path": outputUrl.absoluteString,
-                              @"duration": @([videoAsset duration])
-                              }
-                            );
-                    break;
-                }
-                default:
-                {
-                    NSError *error = [NSError errorWithDomain:@"RNGalleryManager" code: -91 userInfo:nil];
-                    reject(@"Unknown", @"Unknown status", error);
-                    break;
-                }
+          if (exportProgressTimer != nil) {
+            [exportProgressTimer invalidate];
+            exportProgressTimer = nil;
+          }
+          
+          NSError *error = exportSession.error;
+          
+          // File already exits
+          if (error != nil && error.code == -11823) {
+            if (exportProgressTimer != nil) {
+              [exportProgressTimer invalidate];
+              exportProgressTimer = nil;
             }
+            
+            resolve(@{
+              @"type": @"video",
+              @"filename": tempName ?: @"",
+              @"mimeType": mimeType ?: @"",
+              @"path": outputUrl.absoluteString,
+              @"duration": @(0)
+            });
+            return;
+          }
+
+          switch ([exportSession status]) {
+            case AVAssetExportSessionStatusFailed: {
+              NSError* error = exportSession.error;
+              NSString *codeWithDomain = [NSString stringWithFormat:@"E%@%zd", error.domain.uppercaseString, error.code];
+              reject(codeWithDomain, error.localizedDescription, error);
+              break;
+            }
+            case AVAssetExportSessionStatusCancelled: {
+              NSError *error = [NSError errorWithDomain:@"RNGalleryManager" code: -91 userInfo:nil];
+              reject(@"Cancelled", @"Export canceled", error);
+              break;
+            }
+            case AVAssetExportSessionStatusCompleted: {
+              resolve(@{
+                @"type": @"video",
+                @"filename": tempName ?: @"",
+                @"mimeType": mimeType ?: @"",
+                @"path": outputUrl.absoluteString,
+                @"duration": @([videoAsset duration])
+              });
+              break;
+            }
+            default: {
+              NSError *error = [NSError errorWithDomain:@"RNGalleryManager" code: -91 userInfo:nil];
+              reject(@"Unknown", @"Unknown status", error);
+              break;
+            }
+          }
         }];
     }];
 }
