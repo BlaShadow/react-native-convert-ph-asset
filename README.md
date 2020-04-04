@@ -71,6 +71,25 @@ RNConvertPhAsset.convertVideoFromUrl({
 
 ***
 
+### Events
+
+This library supports just both kind of events, `VideoProcessingProgress` and `DownloadAssetProgress`
+
+```javascript
+const handler = (info) => {
+  const progress = info.progress
+  const assetId = info.assetId
+}
+RNConvertPhAsset.registerToEvent('eventName', handler);
+```
+
+
+#### VideoProcessingProgress
+This event will give you the progress of the video converting process
+
+#### DownloadAssetProgress
+This event will give you the progress of the video download process 
+
 ## Acknowledgements
 
 - [`react-native-gallery-manager`](https://github.com/pentarex/react-native-gallery-manager) - original basis of this project
