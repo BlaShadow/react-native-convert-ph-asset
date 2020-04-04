@@ -41,13 +41,13 @@ RNConvertPhAsset.convertVideoFromId({
 // or
 
 RNConvertPhAsset.convertVideoFromUrl({
-	url: 'ph://F1B091FF-0A55-5D4F-81E6-A3F7F28FC991/L0/001',
-	convertTo: 'mov',
-	quality: 'medium'
+  url: 'ph://F1B091FF-0A55-5D4F-81E6-A3F7F28FC991/L0/001',
+  convertTo: 'mov',
+  quality: 'medium'
 }).then((response) => {
-	console.log(response);
+  console.log(response);
 }).catch((err) => {
-   console.log(err)
+  console.log(err)
 });
 ```
 
@@ -56,7 +56,7 @@ RNConvertPhAsset.convertVideoFromUrl({
 | url      		| String 			| | Video asset |
 | id      		| String 			| | The id of the video asset | 
 | convertTo      | String 	     	| |Can be mpeg4, m4v or mov |
-| quality 		| String      	| original |Can be original, high, medium, low |
+| quality 		| String      	| original |Can be original, high, medium, low, aVAssetExportPreset640x480, aVAssetExportPreset960x540, aVAssetExportPreset1280x720 |
 
 ##### Response
 ```javascript
