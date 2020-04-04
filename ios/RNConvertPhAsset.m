@@ -32,6 +32,9 @@
     dispatch_once(&onceToken, ^{
         options = @{
                     @"original": AVAssetExportPresetPassthrough,
+                    @"aVAssetExportPreset640x480": AVAssetExportPreset640x480,
+                    @"aVAssetExportPreset960x540": AVAssetExportPreset960x540,
+                    @"aVAssetExportPreset1280x720": AVAssetExportPreset1280x720,
                     @"low": AVAssetExportPresetLowQuality,
                     @"medium": AVAssetExportPresetMediumQuality,
                     @"high": AVAssetExportPresetHighestQuality,
